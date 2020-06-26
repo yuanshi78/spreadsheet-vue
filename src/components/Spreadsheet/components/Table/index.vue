@@ -7,10 +7,10 @@
 <template>
     <table class="spread-table" @keydown="moveSelection">
         <tbody>
-            <Row v-for="(row, idx) in rowsSet"
-                 :row="row" :key="row.row"
+            <Row v-for="(row, idx) in resultingLayout"
+                 :row="row" :key="`row${idx}`"
                  :rowIdx="idx"
-                 :maxcols="maxCols"
+                 :maxColsQnty="maxColsQnty"
                  @change-value="updateValue"
                  @set-selected="handleCellSelected"
             >
@@ -23,7 +23,6 @@
     import Row from '../Row';
     import { parseRange } from '../utils.js';
 
-
     export default {
         components: {
             Row
@@ -33,9 +32,11 @@
 
         data() {
             return {
-                extendedLayout: [], //布局数据，加上些处理布局的过程需要的属性
-                rowsSet: [], //fff
-                maxCols: 0, //最大的行数
+                maxRowsQnty: 0, //行数
+                maxColsQnty: 0, //列数
+                sortedLayout: [], //排序好的列表layout数组
+                resultingLayout: [], //缺席的行是用空行补充的
+
                 //单元格座位
                 cellPosition : {
                     row: -1,  //行
@@ -45,209 +46,143 @@
         },
 
         mounted() {
-            //this.findSpannedCells();
-            this.processLayoutCells();
-            this.sortDataset();
-            this.buildTableDataStructure();
+            this.processLayoutData();
+            this.getMaxRowsQnty();
+            this.setFullRowsLayout();
             window.addEventListener('keydown', evt => this.moveSelection(evt))
         },
 
         methods: {
             /**
-             * 处理列表单元格
+             * 排序列表layout
              */
-            processLayoutCells() {
-                this.layout.forEach(cell => {
-                    this.setAdditionalProperties(cell);
-                    this.splitSpannedCells(cell);
+            processLayoutData() {
+                this.sortRows();
+                this.sortedLayout = this.layout.slice();
+                this.processEachRow();
+            },
+
+            /**
+             * 排序列表里的行
+             */
+            sortRows() {
+                this.layout.sort((rowOne, rowTwo) => {
+                    const rowOneNum = parseRange(rowOne[0].row).start;//Number(rowOne[0].row.match(/^(\d+)/)[1]);
+                    const rowTwoNum = parseRange(rowTwo[0].row).start;//Number(rowTwo[0].row.match(/^(\d+)/)[1]);
+
+                    return rowOneNum - rowTwoNum;
                 });
             },
 
             /**
-             *
+             * 处理每一行的数据
              */
-            setAdditionalProperties(cell) {
+            processEachRow() {
+                this.layout.forEach(row => {
+                    this.splitSpandRows(row);
+                    row.sort((cellOne, cellTwo) => {
+                        const colOneNum = parseRange(cellOne.col).start; //Number(cellOne.col.match(/^(\d+)/)[1]);
+                        const colTwoNum = parseRange(cellTwo.col).start; //Number(cellTwo.col.match(/^(\d+)/)[1]);
 
+                        return colOneNum - colTwoNum;
+                    });
+                    this.getMaxColsQnty(row);
+                });
             },
 
             /**
-             * 找到
+             * 切开占几行的单元格
              */
-            findSpannedCells() {
-                this.dataset.find(cell => {
-                    if (/:/.test(cell.row)) {
-                        this.splitSpannedCells(cell);
-                    }
-                })
-            },
+            splitSpandRows(row) {
+                row.forEach(cell => {
+                    const parsedRowNum = parseRange(cell.row);
+                    const startRow = parsedRowNum.start;
+                    const endRow = parsedRowNum.end;
 
-            /**
-             * 把占几列或几行的单元格分解
-             */
-            splitSpannedCells(cell) {
-                const startRow = Number(parseRange(cell.row)[0]);
-                const endRow = Number(parseRange(cell.row)[1]);
-
-                for (let i = startRow; i <= endRow; i++) {
-                    let newCell = {
-                        hidden: true,
-                        row: `${i}`,
-                        col: cell.col
-                    };
-
-                    this.dataset.push(newCell);
-                }
-            },
-
-            /**
-             * 排序列表数据
-             */
-            sortDataset() {
-                this.dataset.sort((cell1, cell2) => {
-                    if (cell1.row > cell2.row) {
-                        return 1;
-                    } else {
-                        if (cell1.row === cell2.row) {
-                            if (cell1.col > cell2.col) {
-                                return 1;
-                            }
-                             else {
-                                 return -1;
-                            }
-                        } else {
-                            return -1;
+                    if (startRow < endRow) {
+                        for (let i = startRow; i < endRow; i++) {
+                            this.insertSplittedCellIntoRow(cell, i);
                         }
                     }
                 });
             },
 
-
             /**
-             * 把一维数组变成二维数组局
+             * 插入切开的单元格
              */
-            buildTableDataStructure() {
-                let rows = [];
-                let currRow = [];
-                let prevCell = { row: '1', col: '0' };
-                let tableCell = {};
+            insertSplittedCellIntoRow(cell, idx) {
+                if (!this.sortedLayout[idx]) {
+                    this.sortedLayout.splice(idx, 0, []);
+                }
 
-                this.dataset.forEach(cell => {
-                    tableCell = this.setCellProps(cell);
-                    this.calcMaxColNum(tableCell);
-
-                    const rowsDiff = this.notInSameRow(prevCell, tableCell);
-
-                    if (rowsDiff) {
-                        rows = this.insertRow(rows, currRow, rowsDiff);
-                        currRow = [];
-                    }
-                    currRow.push(tableCell);
-                    prevCell = tableCell;
+                this.sortedLayout[idx].push({
+                    row: `${idx + 1}:${idx + 1}`,
+                    col: cell.col,
+                    hidden: true,
                 });
-                rows.push(currRow);
-
-                this.rowsSet = rows;
             },
 
             /**
-             * 设置单元格的属性
+             * 获取列表的列数
+             * @param {Array} row 列表的一行
              */
-            setCellProps(cell) {
-                let colRowSpan = {};
+            getMaxColsQnty(row) {
+                const length = row.length;
+                const maxColNum = parseRange(row[length - 1].col).end; //Number(row[length - 1].col.match(/(\d+)$/)[1]);
 
-                if (cell.col && cell.row) {
-                    colRowSpan = this.setColAndRowSpan(cell);
-                }
-
-                if (!cell.selected) {
-                    cell.selected = false;
-                }
-
-                return Object.assign({}, cell, colRowSpan);
-            },
-
-
-            /**
-             * 设置colspan和rowspan
-             * @param {Object} colRow 包括行号和列号的对象
-             * @returns {Object} 包括colSpan和rowSpan的对象
-             */
-            setColAndRowSpan(cell) {
-                const rows = cell.row.split(':');
-                const cols = cell.col.split(':');
-                let spans = {
-                    colSpan: 1,
-                    rowSpan: 1
-                };
-
-                if (cols.length === 2) {
-                    spans.colSpan = Number(cols[1]) - Number(cols[0]) + 1;
-                }
-
-                if (rows.length === 2) {
-                    spans.rowSpan = Number(rows[1]) - Number(rows[0]) + 1;
-                }
-
-                return spans;
-            },
-
-            /**
-             * 计算列表多少列
-             * @param {Object} tableCell 单元格
-             */
-            calcMaxColNum(tableCell) {
-                const parsedColsNo = parseRange(tableCell.col);
-                const colNo = parsedColsNo[1] ? Number(parsedColsNo[1]) : Number(parsedColsNo[0]);
-
-                if (colNo > this.maxCols) {
-                    this.maxCols = colNo;
+                if (maxColNum > this.maxColsQnty) {
+                    this.maxColsQnty = maxColNum;
                 }
             },
 
             /**
-             * 是否同一行的单元格
-             * @param {Object} prevCell 上个单元格
-             * @param {Object} currCell 当前的单元格
-             * @returns {number} 两个单元格行的差别
+             * 获取列表的行数
              */
-            notInSameRow(prevCell, currCell) {
-                const prevCellRowNo = Number(parseRange(prevCell.row)[0]);
-                const currCellRowNo = Number(parseRange(currCell.row)[0]);
+            getMaxRowsQnty() {
+                const length = this.sortedLayout.length;
 
-                return currCellRowNo - prevCellRowNo;
+                this.maxRowsQnty = parseRange(this.sortedLayout[length - 1][0].row).start;//Number(this.layout[length - 1][0].row.match(/^(\d+)/)[1]);
             },
 
             /**
-             * 插入数据行
-             * @param {Array} rows 表格行的数组
-             * @param {}
+             * 用空行补充列表
              */
-            insertRow(rows, currRow, rowsDiff) {
-                let rowsCopy = rows.slice();
-
-                if (rowsDiff > 1) {
-                    rowsCopy = this.insertEmptyRows(rowsDiff, rowsCopy);
+            setFullRowsLayout() {
+                const presentRowsQnty = this.sortedLayout.length;
+                const maxRowsQntyNum = this.maxRowsQnty;
+                
+                if (presentRowsQnty < maxRowsQntyNum) {
+                    for (let i = 0; i < maxRowsQntyNum; i++) {
+                        if (!this.isRowPresent(i + 1)) {
+                            this.insertEmptyRow(i);
+                        }
+                    }
                 }
-
-                rowsCopy.push(currRow);
-
-                return rowsCopy;
             },
 
             /**
-             * 加上空行
-             * @param {number} rowsDiff 缺几行
-             * @param {Array} rows 列表数据
-             * @returns {*} 全整的列表
+             * layout数组是不是有这一行
+             * @param {number} num 第几行
+             * @returns {boolean} true - 有, false - 没有
              */
-            insertEmptyRows(rowsDiff, rows) {
-                const rowsCopy = rows.slice();
+            isRowPresent(num) {
+                return this.sortedLayout.findIndex(row => {
+                    const rowNum = parseRange(row[0].row).start; //Number(row[0].row.match(/^(\d+)/)[1]);
 
-                for (let i = 0; i < rowsDiff; i++) {
-                    rowsCopy.push([]);
-                }
+                    if (rowNum === num) {
+                        return true;
+                    }
 
-                return rowsCopy;
+                    return false;
+                }) !== -1;
+            },
+
+            /**
+             * 插入空行
+             * @param {number} idx layout数组里的索引，指需要插入空行的地方
+             */
+            insertEmptyRow(idx) {
+                this.resultingLayout.splice(idx, 0, []);
             },
 
             /**

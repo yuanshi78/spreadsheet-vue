@@ -28,41 +28,42 @@
             Cell
         },
 
-        props: [ 'row', 'maxcols', 'rowIdx' ],
+        props: [ 'row', 'maxColsQnty', 'rowIdx' ],
 
         data() {
             return {
-                rowCopy: [], //行的复制本
+                resultingRow: [], //缺席的单元格是用空行补充的
             }
         },
 
         mounted() {
-            this.sortCells();
-            this.rowCopy = this.row.slice();
-            this.setIncompleteRow();
-
+            //this.sortCells();
+            //this.resultingRow = this.row.slice();
+            //this.setIncompleteRow();
         },
 
         methods: {
-            /**
-             * 排序单元格
-             */
             sortCells() {
-                this.row.sort((cell1, cell2) => {
-                    return Number(parseRange(cell1.col)[0]) - Number(parseRange(cell2.col)[0]);
-                });
+                if (this.row.length) {
+                    this.row.sort((cellOne, cellTwo) => {
+                        const cellOneColNum = parseRange(cellOne.col).start;
+                        const cellTwoColNum = parseRange(cellTwo.col).start;
+
+                        return cellOneColNum - cellTwoColNum;
+                    });
+                }
             },
 
             /**
              * 如果一行缺数据，补充它
              */
             setIncompleteRow() {
-                const maxCols = this.maxcols;
+                const maxCols = this.maxColsQnty;
                 const rowLength = this.row.length;
 
                 for (let i = 1; i <= maxCols; i++) {
                     if (!rowLength || !this.isCellPresent(i)) {
-                        this.row.splice(i - 1, 0, { row: this.rowIdx, col: `${i}`, rowSpan: 1, colSpan: 1, width: '50px' });
+                        this.row.splice(i - 1, 0, { row: this.rowIdx, col: `${i}:${i}`, rowSpan: 1, colSpan: 1, width: '50px' });
                     }
                 }
             },
@@ -76,8 +77,8 @@
                 let parsedColNo = [];
                 let startColNo = 0;
 
-                if (this.rowCopy.length) {
-                    parsedColNo = parseRange(this.rowCopy[0].col);
+                if (this.resultingRow.length) {
+                    parsedColNo = parseRange(this.resultingRow[0].col);
                     startColNo = Number(parsedColNo[0])
                 } else {
                     return false;

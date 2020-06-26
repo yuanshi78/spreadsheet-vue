@@ -10,7 +10,10 @@
  * @return {Array} 包括开始列（行）和结束列的数组
  */
 export function parseRange(range) {
-    const splitRange = range.split(':');
+    const splittedRange = range.split(':');
 
-    return splitRange;
+    return {
+        start: Number(splittedRange[0]),
+        end: Number(splittedRange[1])
+    };
 }

@@ -1,0 +1,14 @@
+import { mount } from '@vue/test-utils';
+import layoutData from './layout.js';
+import Spreadsheet from '@/components/Spreadsheet/index.vue';
+
+describe('Speadsheet vue组件单元测试', () => {
+  it('有正确的行数', () => {
+    const layout = layoutData;
+    const wrapper = mount(Spreadsheet, {
+      propsData: { layout }
+    });
+
+    expect(wrapper.findAll('tr').length).toBe(5)
+  });
+})
