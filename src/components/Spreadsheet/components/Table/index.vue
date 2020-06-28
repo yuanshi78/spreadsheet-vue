@@ -10,7 +10,7 @@
             <Row v-for="(row, idx) in resultingLayout"
                  :row="row" :key="`row${idx}`"
                  :rowIdx="idx"
-                 :maxColsQnty="maxColsQnty"
+                 :colsQnty="colsQnty"
                  @change-value="updateValue"
                  @set-selected="handleCellSelected"
             >
@@ -32,9 +32,10 @@
 
         data() {
             return {
-                maxRowsQnty: 0, //行数
-                maxColsQnty: 0, //列数
-                sortedLayout: [], //排序好的列表layout数组
+                rowsQnty: 0, //行数
+                colsQnty: 0, //列数
+                //sortedRowsLayout: [], //排序好的列表layout数组
+                prevRowNo: 0, //行的索引
                 resultingLayout: [], //缺席的行是用空行补充的
 
                 //单元格座位
@@ -47,18 +48,19 @@
 
         mounted() {
             this.processLayoutData();
-            this.getMaxRowsQnty();
-            this.setFullRowsLayout();
+            this.getRowsQnty();
+            //this.setFullRowsLayout();
             window.addEventListener('keydown', evt => this.moveSelection(evt))
         },
 
         methods: {
             /**
-             * 排序列表layout
+             * 处理布局数据
              */
             processLayoutData() {
                 this.sortRows();
-                this.sortedLayout = this.layout.slice();
+                this.addMissingRows();
+                console.log('resulting layout', this.resultingLayout);
                 this.processEachRow();
             },
 
@@ -67,26 +69,63 @@
              */
             sortRows() {
                 this.layout.sort((rowOne, rowTwo) => {
-                    const rowOneNum = parseRange(rowOne[0].row).start;//Number(rowOne[0].row.match(/^(\d+)/)[1]);
-                    const rowTwoNum = parseRange(rowTwo[0].row).start;//Number(rowTwo[0].row.match(/^(\d+)/)[1]);
+                    const rowOneNum = parseRange(rowOne[0].row).start;
+                    const rowTwoNum = parseRange(rowTwo[0].row).start;
 
                     return rowOneNum - rowTwoNum;
                 });
             },
 
             /**
+             * 补充缺少的行
+             */
+            addMissingRows() {
+                this.layout.forEach((row, idx) => {
+                    let curRowNo = parseRange(row[0].row).start;
+                    let delta =  curRowNo - this.prevRowNo;
+
+                    console.log('delta', delta, curRowNo);
+                    if (delta > 1) {
+                        this.insertEmpryRows(delta)
+                    }
+                    this.prevRowNo = curRowNo;
+                    this.resultingLayout.push(row);
+                });
+            },
+
+            /**
+             * 加上空行
+             * @param {number}　rowQntyToInsert 
+             */
+            insertEmpryRows(rowQntyToInsert) {
+                for (let i = 0; i < rowQntyToInsert - 1; i++) {
+                  this.resultingLayout.push([]);
+                }
+            },
+
+            /**
              * 处理每一行的数据
              */
             processEachRow() {
-                this.layout.forEach(row => {
+                this.resultingLayout.forEach((row, idx) => {
+                    this.sortCols(row);
                     this.splitSpandRows(row);
-                    row.sort((cellOne, cellTwo) => {
-                        const colOneNum = parseRange(cellOne.col).start; //Number(cellOne.col.match(/^(\d+)/)[1]);
-                        const colTwoNum = parseRange(cellTwo.col).start; //Number(cellTwo.col.match(/^(\d+)/)[1]);
+                    if (row.length) {
+                        this.getColsQnty(row);
+                    }
+                });
+            },
 
-                        return colOneNum - colTwoNum;
-                    });
-                    this.getMaxColsQnty(row);
+            /**
+             * 排序每一行里的单元格
+             * @param {Array} row 行
+             */
+            sortCols(row) {
+                row.sort((cellOne, cellTwo) => {
+                    const colOneNum = parseRange(cellOne.col).start; 
+                    const colTwoNum = parseRange(cellTwo.col).start;
+
+                    return colOneNum - colTwoNum;
                 });
             },
 
@@ -100,6 +139,7 @@
                     const endRow = parsedRowNum.end;
 
                     if (startRow < endRow) {
+                        console.log('spanned row', startRow, endRow);
                         for (let i = startRow; i < endRow; i++) {
                             this.insertSplittedCellIntoRow(cell, i);
                         }
@@ -111,48 +151,47 @@
              * 插入切开的单元格
              */
             insertSplittedCellIntoRow(cell, idx) {
-                if (!this.sortedLayout[idx]) {
-                    this.sortedLayout.splice(idx, 0, []);
-                }
-
-                this.sortedLayout[idx].push({
+                console.log('idx', idx, this.resultingLayout[idx], this.layout[idx]);
+                const newCell = {
                     row: `${idx + 1}:${idx + 1}`,
                     col: cell.col,
                     hidden: true,
-                });
+                };
+
+                this.resultingLayout[idx].push(newCell);
             },
 
             /**
              * 获取列表的列数
              * @param {Array} row 列表的一行
              */
-            getMaxColsQnty(row) {
+            getColsQnty(row) {
                 const length = row.length;
-                const maxColNum = parseRange(row[length - 1].col).end; //Number(row[length - 1].col.match(/(\d+)$/)[1]);
+                const maxColNum = parseRange(row[length - 1].col).end;
 
-                if (maxColNum > this.maxColsQnty) {
-                    this.maxColsQnty = maxColNum;
+                if (maxColNum > this.colsQnty) {
+                    this.colsQnty = maxColNum;
                 }
             },
 
             /**
              * 获取列表的行数
              */
-            getMaxRowsQnty() {
-                const length = this.sortedLayout.length;
+            getRowsQnty() {
+                const length = this.resultingLayout.length;
 
-                this.maxRowsQnty = parseRange(this.sortedLayout[length - 1][0].row).start;//Number(this.layout[length - 1][0].row.match(/^(\d+)/)[1]);
+                this.rowsQnty = parseRange(this.resultingLayout[length - 1][0].row).start;
             },
 
             /**
              * 用空行补充列表
              */
             setFullRowsLayout() {
-                const presentRowsQnty = this.sortedLayout.length;
-                const maxRowsQntyNum = this.maxRowsQnty;
+                const presentRowsQnty = this.sortedRowsLayout.length;
+                const rowsQntyNum = this.rowsQnty;
                 
-                if (presentRowsQnty < maxRowsQntyNum) {
-                    for (let i = 0; i < maxRowsQntyNum; i++) {
+                if (presentRowsQnty < rowsQntyNum) {
+                    for (let i = 0; i < rowsQntyNum; i++) {
                         if (!this.isRowPresent(i + 1)) {
                             this.insertEmptyRow(i);
                         }
@@ -166,7 +205,7 @@
              * @returns {boolean} true - 有, false - 没有
              */
             isRowPresent(num) {
-                return this.sortedLayout.findIndex(row => {
+                return this.sortedRowsLayout.findIndex(row => {
                     const rowNum = parseRange(row[0].row).start; //Number(row[0].row.match(/^(\d+)/)[1]);
 
                     if (rowNum === num) {
