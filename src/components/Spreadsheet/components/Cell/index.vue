@@ -5,8 +5,8 @@
 */
 <template>
     <td v-if="!cell.hidden"
-        :colspan="cell.colSpan"
-        :rowspan="cell.rowSpan"
+        :colspan="colSpan"
+        :rowspan="rowSpan"
         :style="style"
         :class="{ 'edit-mode': isEditMode }"
         @click="toggleSelected"
@@ -23,12 +23,12 @@
                     @change="updateValue"
             >
         </div>
-        <div v-show="selected" class="selected"></div>
+        <div v-show="selected && cell.editable" class="selected"></div>
     </td>
 </template>
 
 <script>
-    //import { parseRange } from '../utils.js';
+    import { parseRange } from '../utils.js';
 
     export default {
         props: [ 'cell', 'selected', 'rowIdx', 'cellIdx' ],
@@ -45,6 +45,25 @@
             style() {
                 return Object.assign({}, { width: this.cell.width }, this.cell.style);
             },
+
+            rowSpan() {
+                const start = parseRange(this.cell.row).start;
+                const end = parseRange(this.cell.row).end;
+
+                return end - start + 1;
+            },
+
+            colSpan() {
+                //console.log('cell', this.cell, this.cell.col);
+                const start = parseRange(this.cell.col).start;
+                const end = parseRange(this.cell.col).end;
+
+                return end - start + 1;
+            }
+        },
+
+        created() {
+
         },
 
         watch: {
@@ -59,6 +78,10 @@
             toggleSelected() {
                 if (this.cell.editable) {
                     this.isClicked = !this.isClicked;
+                    console.log({
+                        rowIdx: this.rowIdx,
+                        colIdx: this.cellIdx
+                    });
                     this.$emit('set-selected', {
                         rowIdx: this.rowIdx,
                         colIdx: this.cellIdx

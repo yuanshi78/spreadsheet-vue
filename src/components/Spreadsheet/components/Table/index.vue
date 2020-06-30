@@ -11,6 +11,7 @@
                  :row="row" :key="`row${idx}`"
                  :rowIdx="idx"
                  :colsQnty="colsQnty"
+                 :selectedCell="cellPosition"
                  @change-value="updateValue"
                  @set-selected="handleCellSelected"
             >
@@ -34,9 +35,10 @@
             return {
                 rowsQnty: 0, //行数
                 colsQnty: 0, //列数
-                //sortedRowsLayout: [], //排序好的列表layout数组
                 prevRowNo: 0, //行的索引
+                sortedLayout: [], //缺席的行是用空行补充的
                 resultingLayout: [], //缺席的行是用空行补充的
+                currIdx: 0, //单元格的索引
 
                 //单元格座位
                 cellPosition : {
@@ -48,9 +50,9 @@
 
         mounted() {
             this.processLayoutData();
+            this.insertAbsentCells();
             this.getRowsQnty();
-            //this.setFullRowsLayout();
-            window.addEventListener('keydown', evt => this.moveSelection(evt))
+            window.addEventListener('keydown', evt => this.moveSelection(evt));
         },
 
         methods: {
@@ -60,9 +62,9 @@
             processLayoutData() {
                 this.sortRows();
                 this.addMissingRows();
-                console.log('resulting layout', this.resultingLayout);
                 this.processEachRow();
             },
+
 
             /**
              * 排序列表里的行
@@ -80,26 +82,25 @@
              * 补充缺少的行
              */
             addMissingRows() {
-                this.layout.forEach((row, idx) => {
+                this.layout.forEach(row => {
                     let curRowNo = parseRange(row[0].row).start;
                     let delta =  curRowNo - this.prevRowNo;
 
-                    console.log('delta', delta, curRowNo);
                     if (delta > 1) {
                         this.insertEmpryRows(delta)
                     }
                     this.prevRowNo = curRowNo;
-                    this.resultingLayout.push(row);
+                    this.sortedLayout.push(row);
                 });
             },
 
             /**
              * 加上空行
-             * @param {number}　rowQntyToInsert 
+             * @param {number} rowQntyToInsert 要加上几行
              */
             insertEmpryRows(rowQntyToInsert) {
                 for (let i = 0; i < rowQntyToInsert - 1; i++) {
-                  this.resultingLayout.push([]);
+                  this.sortedLayout.push([]);
                 }
             },
 
@@ -107,9 +108,9 @@
              * 处理每一行的数据
              */
             processEachRow() {
-                this.resultingLayout.forEach((row, idx) => {
+                this.sortedLayout.forEach(row => {
                     this.sortCols(row);
-                    this.splitSpandRows(row);
+                    this.splitSpannedRows(row);
                     if (row.length) {
                         this.getColsQnty(row);
                     }
@@ -132,14 +133,13 @@
             /**
              * 切开占几行的单元格
              */
-            splitSpandRows(row) {
+            splitSpannedRows(row) {
                 row.forEach(cell => {
                     const parsedRowNum = parseRange(cell.row);
                     const startRow = parsedRowNum.start;
                     const endRow = parsedRowNum.end;
 
                     if (startRow < endRow) {
-                        console.log('spanned row', startRow, endRow);
                         for (let i = startRow; i < endRow; i++) {
                             this.insertSplittedCellIntoRow(cell, i);
                         }
@@ -151,14 +151,13 @@
              * 插入切开的单元格
              */
             insertSplittedCellIntoRow(cell, idx) {
-                console.log('idx', idx, this.resultingLayout[idx], this.layout[idx]);
                 const newCell = {
                     row: `${idx + 1}:${idx + 1}`,
                     col: cell.col,
                     hidden: true,
                 };
 
-                this.resultingLayout[idx].push(newCell);
+                this.sortedLayout[idx].push(newCell);
             },
 
             /**
@@ -200,7 +199,7 @@
             },
 
             /**
-             * layout数组是不是有这一行
+             * 布局数组是不是有这一行
              * @param {number} num 第几行
              * @returns {boolean} true - 有, false - 没有
              */
@@ -218,10 +217,46 @@
 
             /**
              * 插入空行
-             * @param {number} idx layout数组里的索引，指需要插入空行的地方
+             * @param {number} idx 布局数组里的索引，指需要插入空行的地方
              */
             insertEmptyRow(idx) {
-                this.resultingLayout.splice(idx, 0, []);
+                this.sortedLayout.splice(idx, 0, []);
+            },
+
+            insertAbsentCells() {
+                const maxCols = this.colsQnty;    
+
+                this.sortedLayout.forEach((row, idx) => {
+                    const rowLength = row.length;
+
+                    this.resultingLayout.push([ ...row ]);
+                    for (let i = 1; i <= maxCols; i++) {
+                        if (!rowLength || !this.isCellPresent(i, row)) {
+                            this.resultingLayout[idx].splice(i - 1, 0, { row: `${idx + 1}:${idx + 1}`, col: `${i}:${i}`, selected: false });
+                        }
+                    }
+                    this.currIdx = 0;
+                });
+            },
+
+            /**
+             * 这一行是不是有这第几列的单元格
+             * @param {number} colNo 第几列
+             * @return {boolean} true - 有, false - 没有
+             */
+            isCellPresent(colNo, row) {
+                let parsedColNo = parseRange(row[this.currIdx].col);
+                let startColNo = parsedColNo.start;
+                let endColNo = parsedColNo.end;
+
+                if (startColNo <= colNo && colNo <= endColNo) {
+                    if (colNo === endColNo && this.currIdx + 1 !== row.length) {
+                         this.currIdx++;
+                    }
+                    return true;
+                } else {
+                    return false;
+                }
             },
 
             /**
@@ -237,14 +272,13 @@
              * @param {Object} cellPosition 单元格的座位(row行，col列)
              */
             handleCellSelected(cellPosition) {
-                const position = this.cellPosition;
-
-                if (position.row !== -1 && position.col !== -1) {
-                    this.rowsSet[position.row][position.col].selected = false;
-                }
-                position.row = cellPosition.rowIdx;
-                position.col = cellPosition.colIdx;
-                this.rowsSet[position.row][position.col].selected = true;
+                // if (position.row !== -1 && position.col !== -1) {
+                //     this.rowsSet[position.row][position.col].selected = false;
+                // }
+                this.cellPosition = {
+                    row: cellPosition.rowIdx,
+                    col: cellPosition.colIdx
+                };
             },
 
             /**
@@ -252,11 +286,11 @@
              * @param {Object} evt 事件对象
              */
             moveSelection(evt) {
-                switch (evt.keyCode) {
-                    case 37: this.moveSelectionInRow(1); break;
-                    case 39: this.moveSelectionInRow(2); break;
-                    case 38: this.moveSelectionInColumn(1); break;
-                    case 40: this.moveSelectionInColumn(2); break;
+                switch (evt.key) {
+                    case 'ArrowRight': this.moveSelectionInRow(1); break;
+                    case 'ArrowLeft': this.moveSelectionInRow(2); break;
+                    case 'ArrowUp': this.moveSelectionInColumn(1); break;
+                    case 'ArrowDown': this.moveSelectionInColumn(2); break;
                 }
             },
 
@@ -265,49 +299,36 @@
              * @param {number} direction 1 - 往右，2 - 往左
              */
             moveSelectionInRow(direction) {
-                const position = this.cellPosition;
-
-                this.rowsSet[position.row][position.col].selected = false;
-                position.col = direction === 1 ? this.findNearestEditableCellLeft() :
-                    this.findNearestEditableCellRight();
-                this.rowsSet[position.row][position.col].selected = true;
+                this.cellPosition = this.findNearestEditableCellRight(direction);
             },
 
-            /**
-             * 搜索
-             * @return {number}
-             */
-            findNearestEditableCellLeft() {
+            findNearestEditableCellRight(direction) {
                 const position = this.cellPosition;
-                const currCol = position.col;
-                const row = this.rowsSet[position.row];
+                let col = this.cellPosition.col;
+                let cellIdx = 0;
+                const length = this.resultingLayout[position.row].length;
 
-                for (let i = currCol - 1; i >= 0; i--) {
-                    if (row[i].editable) {
-                        return i;
-                    }
+                if (direction === 1) {
+                    for (let i = col; i < length; i++) {
+                        let cell = this.resultingLayout[position.row][i];
+                        let start = parseRange(cell.col).start;
 
-                    if (!i) {
-                        i = row.length;
+                        if (direction === 1 && start > (col + 1) && cell.editable) {
+                            cellIdx = start - 1;
+                            break;
+                        }
+                        
+                        if (i === length - 1) {
+                            console.log('from start');
+                            i = 1;
+                        }
                     }
                 }
 
-                return position.row;
-            },
-
-            findNearestEditableCellRight() {
-                const position = this.cellPosition;
-                const currCol = position.col;
-                const row = this.rowsSet[position.row];
-                const length = row.length;
-
-                for (let i = currCol + 1; i < length; i++) {
-                    if (row[i].editable) {
-                        return i;
-                    }
+                return {
+                    col: cellIdx,
+                    row: position.row
                 }
-
-                return position.row;
             },
 
             moveSelectionInColumn(direction) {
@@ -316,46 +337,8 @@
                 this.rowsSet[position.row - 1][position.col - 1].selected = false;
                 position.row = direction === 1 ? this.findNearestEditableCellUp() :
                     this.findNearestEditableCellDown();
-                console.log(position.row, position.col, this.rowsSet[position.row - 1]);
                 this.rowsSet[position.row - 1][position.col - 1].selected = true;
             },
-
-            findNearestEditableCellUp() {
-                const position = this.cellPosition;
-                const currRow = position.row;
-                const col = position.col;
-                const rows = this.rowsSet;
-
-                for (let i = currRow - 2; i >= 0; i--) {
-                    console.log('i', i, rows[i], col);
-                    if (rows[i][col - 1].editable) {
-                        return i + 1;
-                    }
-
-                    if (!i) {
-                        console.log(rows.length);
-                        i = rows.length - 1;
-                    }
-                }
-
-                return position.col;
-            },
-
-            findNearestEditableCellDown() {
-                const position = this.cellPosition;
-                const currCol = position.col;
-                const row = this.rowsSet[position.row - 1];
-                const length = row.length;
-
-                for (let i = currCol; i < length; i++) {
-                    if (row[i].editable) {
-                        return i + 1;
-                    }
-                }
-
-                return position.row;
-            },
-
         }
     }
 </script>
