@@ -6,7 +6,7 @@
 
 <script>
     import Spreadsheet from '@/components/Spreadsheet';
-    import layout from '@/layout'
+    import layout from '../../tests/layout'
 
     export default {
         components: {
@@ -15,7 +15,7 @@
 
         data() {
             return {
-                layout
+                layout,
             };
         },
 

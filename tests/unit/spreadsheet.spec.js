@@ -17,7 +17,7 @@ describe('Table组件', () => {
     ],
     [
       { row: '5:5', col: '1:1', value: '行车路线', widht: '100px' },
-      { row: '5:5', col: '4:12', value: '4445', editable: true, width: '1100px' },
+      { row: '5:5', col: '6:12', value: '4445', editable: true, width: '1100px' },
     ],
     [
       { row: '4:4', col: '1:1', value: "主车号", width: '100px'},
@@ -31,12 +31,32 @@ describe('Table组件', () => {
       { row:'1:1', col: '1:12', value: "车辆运行数据", width: '1200px'},
     ],
     [
+      { row: '2:2', col: '1:1', selected: false }, 
+      { row: '2:2', col: '2:2', selected: false },
+      { row: '2:2', col: '3:3', selected: false },
+      { row: '2:2', col: '4:4', selected: false },
+      { row: '2:2', col: '5:5', selected: false },
+      { row: '2:2', col: '6:6', selected: false },
+      { row: '2:2', col: '7:7', selected: false },
+      { row: '2:2', col: '8:8', selected: false },
+      { row: '2:2', col: '9:9', selected: false },
+      { row: '2:2', col: '10:10', selected: false },
+      { row: '2:2', col: '11:11', selected: false },
+      { row: '2:2', col: '12:12', selected: false },
     ],
     [
+      { row: '3:3', col: '1:1', selected: false }, 
+      { row: '3:3', col: '2:2', selected: false },
       { row: '3:3', col: '3:3', value: "发车时间", width: '100px' },
       { row: '3:3', col: '4:4', value: "2020.06.10 11:50", editable: true, width: '100px' },
+      { row: '3:3', col: '5:5', selected: false },
+      { row: '3:3', col: '6:6', selected: false },
       { row: '3:3', col: '7:7', value: "返回地点", width: '100px' },
       { row: '3:3', col: '8:8', value: "1", editable: true, width: '100px' },
+      { row: '3:3', col: '9:9', selected: false },
+      { row: '3:3', col: '10:10', selected: false },
+      { row: '3:3', col: '11:11', selected: false },
+      { row: '3:3', col: '12:12', selected: false },
     ],
     [
       { row: '4:4', col: '1:1', value: "主车号", width: '100px'},
@@ -47,7 +67,7 @@ describe('Table组件', () => {
     [
       { row: '5:5', col: '1:1', value: '行车路线', widht: '100px' },
       { row: '5:5', col: '3:5', hidden: true},
-      { row: '5:5', col: '4:12', value: '4445', editable: true, width: '1100px' },
+      { row: '5:5', col: '6:12', value: '4445', editable: true, width: '1100px' },
     ]
   ];
   const wrapper = shallowMount(Table, {
@@ -74,67 +94,7 @@ describe('Table组件', () => {
   });
 });
 
-describe('Row组件', () => {
-  const rowLayout = [
-    { row: '3:3', col: '3:3', value: "发车时间", width: '100px' },
-    { row: '3:3', col: '4:4', value: "2020.06.10 11:50", editable: true, width: '100px' },
-    { row: '3:3', col: '7:7', value: "返回地点", width: '100px' },
-    { row: '3:3', col: '8:8', value: "1", editable: true, width: '100px' },
-  ];
-  const resultingRowLayout = [
-    { row: '3:3', col: '1:1' }, 
-    { row: '3:3', col: '2:2' },
-    { row: '3:3', col: '3:3', value: "发车时间", width: '100px' },
-    { row: '3:3', col: '4:4', value: "2020.06.10 11:50", editable: true, width: '100px' },
-    { row: '3:3', col: '5:5' },
-    { row: '3:3', col: '6:6' },
-    { row: '3:3', col: '7:7', value: "返回地点", width: '100px' },
-    { row: '3:3', col: '8:8', value: "1", editable: true, width: '100px' },
-    { row: '3:3', col: '9:9' },
-    { row: '3:3', col: '10:10' },
-    { row: '3:3', col: '11:11' },
-    { row: '3:3', col: '12:12' },
-  ];
-  const wrapper = shallowMount(Row, {
-    propsData: {
-      row: rowLayout,
-      maxColsQnty: 12,
-      rowIdx: 2
-    }
-  });
-  const vm = wrapper.vm;
-
-  it('补充缺少的单元格', () => {
-    expect(vm.resultingRow).toEqual(resultingRowLayout);
-  });
-
-  const emptyRow = [];
-  const resultingRowLayoutTwo = [
-    { row: '6:6', col: '1:1' }, 
-    { row: '6:6', col: '2:2' }, 
-    { row: '6:6', col: '3:3' }, 
-    { row: '6:6', col: '4:4' }, 
-    { row: '6:6', col: '5:5' }, 
-    { row: '6:6', col: '6:6' }, 
-    { row: '6:6', col: '7:7' }, 
-    { row: '6:6', col: '8:8' }, 
-    { row: '6:6', col: '9:9' }, 
-    { row: '6:6', col: '10:10' }, 
-    { row: '6:6', col: '11:11' }, 
-    { row: '6:6', col: '12:12' }, 
-  ];
-
-  const wrapper1 = shallowMount(Row, {
-    propsData: {
-      row: emptyRow,
-      maxColsQnty: 12,
-      rowIdx: 5
-    }
-  });
-  const vm1 = wrapper1.vm;
-  it('把单元格插入空行里', () => {
-    expect(vm1.resultingRow).toEqual(resultingRowLayoutTwo);
-  });
+describe('Row组件', () => {  
 });
 
 describe('Cell组件', () => {

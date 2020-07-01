@@ -5,7 +5,7 @@
 */
 
 <template>
-  <table class="spread-table" @keydown="moveSelection">
+  <table class="spread-table" @keydown="moveSelectionTest">
     <tbody>
       <Row
         v-for="(row, idx) in resultingLayout"
@@ -16,6 +16,7 @@
         :selectedCell="cellPosition"
         @change-value="updateValue"
         @set-selected="handleCellSelected"
+        @edit-mode="setEditMode"
       ></Row>
     </tbody>
   </table>
@@ -45,7 +46,8 @@ export default {
       cellPosition: {
         row: -1, //行
         col: -1 //列
-      }
+      },
+      selectedColNo: 0, //
     };
   },
 
@@ -59,6 +61,7 @@ export default {
   methods: {
     /**
      * 处理布局数据
+     * @private
      */
     processLayoutData() {
       this.sortRows();
@@ -68,6 +71,7 @@ export default {
 
     /**
      * 排序列表里的行
+     * @private
      */
     sortRows() {
       this.layout.sort((rowOne, rowTwo) => {
@@ -80,6 +84,7 @@ export default {
 
     /**
      * 补充缺少的行
+     * @private
      */
     addMissingRows() {
       this.layout.forEach(row => {
@@ -97,6 +102,7 @@ export default {
     /**
      * 加上空行
      * @param {number} rowQntyToInsert 要加上几行
+     * @private
      */
     insertEmpryRows(rowQntyToInsert) {
       for (let i = 0; i < rowQntyToInsert - 1; i++) {
@@ -106,6 +112,7 @@ export default {
 
     /**
      * 处理每一行的数据
+     * @private
      */
     processEachRow() {
       this.sortedLayout.forEach(row => {
@@ -120,6 +127,7 @@ export default {
     /**
      * 排序每一行里的单元格
      * @param {Array} row 行
+     * @private
      */
     sortCols(row) {
       row.sort((cellOne, cellTwo) => {
@@ -132,6 +140,7 @@ export default {
 
     /**
      * 切开占几行的单元格
+     * @private
      */
     splitSpannedRows(row) {
       row.forEach(cell => {
@@ -149,12 +158,14 @@ export default {
 
     /**
      * 插入切开的单元格
+     * @private
      */
     insertSplittedCellIntoRow(cell, idx) {
       const newCell = {
-        row: `${idx + 1}:${idx + 1}`,
+        row: cell.row,
         col: cell.col,
-        hidden: true
+        hidden: true,
+        editable: cell.editable
       };
 
       this.sortedLayout[idx].push(newCell);
@@ -163,6 +174,7 @@ export default {
     /**
      * 获取列表的列数
      * @param {Array} row 列表的一行
+     * @private
      */
     getColsQnty(row) {
       const length = row.length;
@@ -175,6 +187,7 @@ export default {
 
     /**
      * 获取列表的行数
+     * @private
      */
     getRowsQnty() {
       const length = this.resultingLayout.length;
@@ -184,6 +197,7 @@ export default {
 
     /**
      * 用空行补充列表
+     * @private
      */
     setFullRowsLayout() {
       const presentRowsQnty = this.sortedRowsLayout.length;
@@ -202,11 +216,12 @@ export default {
      * 布局数组是不是有这一行
      * @param {number} num 第几行
      * @returns {boolean} true - 有, false - 没有
+     * @private
      */
     isRowPresent(num) {
       return (
         this.sortedRowsLayout.findIndex(row => {
-          const rowNum = parseRange(row[0].row).start; //Number(row[0].row.match(/^(\d+)/)[1]);
+          const rowNum = parseRange(row[0].row).start;
 
           if (rowNum === num) {
             return true;
@@ -220,6 +235,7 @@ export default {
     /**
      * 插入空行
      * @param {number} idx 布局数组里的索引，指需要插入空行的地方
+     * @private
      */
     insertEmptyRow(idx) {
       this.sortedLayout.splice(idx, 0, []);
@@ -227,6 +243,7 @@ export default {
 
     /**
      * 插入缺少的单元格
+     * @private
      */
     insertAbsentCells() {
       const maxCols = this.colsQnty;
@@ -252,6 +269,7 @@ export default {
      * 这一行是不是有这第几列的单元格
      * @param {number} colNo 第几列
      * @return {boolean} true - 有, false - 没有
+     * @private
      */
     isCellPresent(colNo, row) {
       let parsedColNo = parseRange(row[this.currIdx].col);
@@ -271,6 +289,7 @@ export default {
     /**
      * 修改值的时候发出事件
      * @param {Object} cell 修改的单元格
+     * @private
      */
     updateValue(cell) {
       this.$emit("change-value", cell);
@@ -279,22 +298,28 @@ export default {
     /**
      * 处理set-edit事件
      * @param {Object} cellPosition 单元格的座位(row行，col列)
+     * @private
      */
     handleCellSelected(cellPosition) {
-      // if (position.row !== -1 && position.col !== -1) {
-      //     this.rowsSet[position.row][position.col].selected = false;
-      // }
       this.cellPosition = {
         row: cellPosition.rowIdx,
         col: cellPosition.colIdx
       };
+      this.selectedColNo = cellPosition.colIdx;
     },
 
     /**
      * 移动选择框
      * @param {Object} evt 事件对象
+     * @private
      */
     moveSelection(evt) {
+      evt.stopPropagation();
+
+      if(this.cellPosition.row === -1 && this.cellPosition.col === -1) {
+        return false;
+      }
+
       switch (evt.key) {
         case "ArrowRight":
           this.moveSelectionInRow(1);
@@ -308,12 +333,16 @@ export default {
         case "ArrowUp":
           this.moveSelectionInColumn(2);
           break;
+        case "Enter":
+          this.setEditMode();
+          break;
       }
     },
 
     /**
      * 横着移动选择框
      * @param {number} direction 1 - 往右，2 - 往左
+     * @private
      */
     moveSelectionInRow(direction) {
       if (direction === 1) {
@@ -321,31 +350,29 @@ export default {
       } else {
         this.cellPosition = this.findNearestEditableCellLeft();
       }
+      this.selectedColNo = parseRange(this.resultingLayout[this.cellPosition.row][this.cellPosition.col].col).start - 1;
     },
 
     /**
      * 找到下一个可编辑的单元格
+     * @private
      */
     findNearestEditableCellRight() {
       const position = this.cellPosition;
       let col = this.cellPosition.col;
-      let cellIdx = 0;
+      let cellIdx = col;
       const length = this.resultingLayout[position.row].length;
-
-      if (col === length - 1) {
-        col = 0;
-      }
 
       for (let i = col + 1; i < length; i++) {
         let cell = this.resultingLayout[position.row][i];
 
         if (cell.editable) {
+          if (cell.hidden) {
+            position.row = parseRange(cell.row).start;
+          }
+
           cellIdx = i;
           break;
-        }
-
-        if (i === length - 1) {
-          i = 0;
         }
       }
 
@@ -357,27 +384,23 @@ export default {
 
     /**
      * 找到上一个可编辑的单元格
+     * @private
      */
     findNearestEditableCellLeft() {
       const position = this.cellPosition;
       let col = this.cellPosition.col;
-      let cellIdx = 0;
-      const length = this.resultingLayout[position.row].length;
-
-      if (col === 0) {
-        col = length - 1;
-      }
+      let cellIdx = col;
 
       for (let i = col - 1; i >= 0; i--) {
         let cell = this.resultingLayout[position.row][i];
 
+        if (cell.hidden) {
+          position.row = parseRange(cell.row).start - 1;
+        }
+
         if (cell.editable) {
           cellIdx = i;
           break;
-        }
-
-        if (i === 0) {
-          i = length;
         }
       }
 
@@ -390,6 +413,7 @@ export default {
     /**
      * 竖着移动选择框
      * @param {number} direction 1 - 往下，2 - 往上
+     * @private
      */
     moveSelectionInColumn(direction) {
       if (direction === 1) {
@@ -401,86 +425,120 @@ export default {
 
     /**
      * 找到下一个可编辑的单元格
+     * @private
      */
     findNearestEditableCellDown() {
-      const position = this.cellPosition;
       let row = this.cellPosition.row;
-      let rowIdx = 0;
+      let col = this.cellPosition.col;
+      let rowIdx = row;
       const rowsQnty = this.rowsQnty;
 
-      if (row === rowsQnty - 1) {
-        row = 0;
-      }
+      console.log('row', row);
 
       for (let i = row + 1; i < rowsQnty; i++) {
-        let col = this.getColNum(i, position.col);
-        console.log("col--", col);
+        col = this.getColNum(i, this.selectedColNo);
         let cell = this.resultingLayout[i][col];
 
-        if (cell.editable) {
-          rowIdx = i;
-          break;
+        if (cell.hidden) {
+          continue;
         }
 
-        if (i === rowsQnty - 1) {
-          i = 0;
+        if (cell.editable) {
+          this.curMovePrevRowNo = row;
+          rowIdx = i;
+          console.log('rowIdx', rowIdx);
+          break;
         }
       }
 
       return {
-        col: position.col,
+        col,
         row: rowIdx
       };
     },
 
     /**
      * 竖着移动的时候获取单元格的列号
+     * @private
      */
     getColNum(rowNo, colNo) {
       const row = this.resultingLayout[rowNo];
+      let pos = -1;
 
-      return row.findIndex(cell => {
+      pos = row.findIndex(cell => {
         const parsedColNo = parseRange(cell.col);
         const start = parsedColNo.start;
         const end = parsedColNo.end;
 
-        console.log(start, end, colNo);
-        if (start <= colNo + 1 && colNo + 1 <= end) {
+        if (start <= (colNo + 1) && (colNo + 1) <= end && cell.editable) {
           return true;
         }
       });
+
+      if (pos === -1) {
+        pos = row.findIndex(cell => {
+          if (cell.editable) {
+            return true;
+          }
+        });
+      }
+
+      return pos;
     },
 
     /**
      * 找到上一个可编辑的单元格
+     * @private
      */
     findNearestEditableCellUp() {
-      const position = this.cellPosition;
-      let row = this.cellPosition.row;
+      const pRow = this.cellPosition.row;
+      const pCol = this.cellPosition.col;
+      let col = 0;
       let rowIdx = 0;
-      const rowsQnty = this.rowsQnty;
 
-      if (row === 0) {
-        row = rowsQnty - 1;
-      }
+      for (let i = pRow - 1; i >= 0; i--) {
+        col = this.getColNum(i, this.selectedColNo);
 
-      for (let i = row - 1; i >= 0; i--) {
-        let cell = this.resultingLayout[i][position.col];
-
-        if (cell.editable) {
-          rowIdx = i;
+        if (col === -1) {
           break;
         }
 
-        if (i === 0) {
-          i = rowsQnty;
+        let cell = this.resultingLayout[i][col];
+
+        if (cell.hidden) {
+          continue;
+        }
+
+        if (cell && cell.editable) {
+          rowIdx = i;
+          break;
         }
       }
 
       return {
-        col: position.col,
-        row: rowIdx
+        col: col !== -1 ? col : pCol,
+        row: col !== -1 ? rowIdx : pRow
       };
+    },
+
+    /**
+     * 把单元格的状态转换成可编辑的单元格
+     * @private
+     */
+    setEditMode() {
+      const rowNo = this.cellPosition.row;
+      const colNo = this.cellPosition.col;
+      let row = this.resultingLayout[rowNo];
+      let newRow = [];
+      const cell = this.resultingLayout[rowNo][colNo];
+
+      newRow = row.slice();
+      newRow.splice(colNo, 1, Object.assign({}, cell, { editMode: !cell.editMode }));
+      this.resultingLayout.splice(rowNo, 1, newRow);
+    },
+
+    moveSelectionTest(){
+      console.log('--------');
     }
   }
 };
@@ -488,7 +546,6 @@ export default {
 
 <style lang="scss" scoped>
 .spread-table {
-  /*width: 100%;*/
   border-collapse: collapse;
   table-layout: fixed;
 }
