@@ -1,6 +1,6 @@
 # spreadsheet组件
 
-##　node version
+## node version
 8.16.0
 
 ## npm version
