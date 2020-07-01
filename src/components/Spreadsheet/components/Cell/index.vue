@@ -5,30 +5,30 @@
 */
 <template>
     <td v-if="!cell.hidden"
-        :colspan="cell.colSpan"
-        :rowspan="cell.rowSpan"
+        ref="td"
+        :colspan="colSpan"
+        :rowspan="rowSpan"
         :style="style"
-        :class="{ 'edit-mode': isEditMode }"
+        :class="{ 'edit-mode': cell.editMode }"
         @click="toggleSelected"
         @dblclick="toggleEditMode">
-        <div v-show="cell.editable && !isEditMode">{{ editableValue }}</div>
+        <div v-show="cell.editable" :style="{ visibility: cell.editMode ? 'hidden' : 'visible', width: width }">{{ editableValue }}</div>
         <div v-show="!cell.editable">{{ cell.value }}</div>
-        <div v-show="cell.editable && isEditMode" class="editable-cell">
+        <div v-show="cell.editable && cell.editMode" class="editable-cell">
             <input
                     ref="input"
-                    type="text"
+                    :type="cell.type ? cell.type : 'text'"
                     v-model="editableValue"
                     @dblclick="toggleEditMode"
-                    @blur="isEditMode = false"
                     @change="updateValue"
             >
         </div>
-        <div v-show="selected" class="selected"></div>
+        <div v-show="selected && cell.editable" class="selected"></div>
     </td>
 </template>
 
 <script>
-    //import { parseRange } from '../utils.js';
+    import { parseRange } from '../utils.js';
 
     export default {
         props: [ 'cell', 'selected', 'rowIdx', 'cellIdx' ],
@@ -38,19 +38,52 @@
                 isEditMode: false,
                 isClicked: false,
                 editableValue: this.cell.value,
+                height: 0,
+                width: 0,
             }
         },
 
         computed: {
             style() {
-                return Object.assign({}, { width: this.cell.width }, this.cell.style);
+                return Object.assign({}, { 
+                      width: this.cell.width, 
+                      height: this.cell.height 
+                    }, 
+                    this.cell.style);
             },
+
+            rowSpan() {
+                const start = parseRange(this.cell.row).start;
+                const end = parseRange(this.cell.row).end;
+
+                return end - start + 1;
+            },
+
+            colSpan() {
+                const start = parseRange(this.cell.col).start;
+                const end = parseRange(this.cell.col).end;
+
+                return end - start + 1;
+            },
+        },
+
+        mounted() {
+          console.log(this.$refs);
+          if (this.$refs.td) {
+            this.width = this.$refs.td.clientWidth + 'px';
+          }
         },
 
         watch: {
             isEditMode(value) {
                 if (value) {
                     setTimeout(() => this.$refs.input.focus(), 100);
+                }
+            },
+
+            cell(value) {
+                if (value.editMode) {
+                     setTimeout(() => this.$refs.input.focus(), 100);
                 }
             }
         },
@@ -70,7 +103,7 @@
              * 开关编辑模式
              */
             toggleEditMode() {
-                this.isEditMode = !this.isEditMode;
+                this.$emit('edit-mode');
             },
 
             /**
@@ -78,9 +111,10 @@
              * @param {Object} cell 修改的单元格
              */
             updateValue() {
-                this.$emit('change-value', Object.assign(this.cell, { value: this.editableValue }));
                 this.isEditMode = false;
-            }
+                this.cell.editMode = false;
+                this.$emit('change-value', Object.assign(this.cell, { value: this.editableValue }));
+            },
         }
     }
 </script>
@@ -90,6 +124,10 @@
         position: relative;
         padding: 5px;
         border: solid 1px #ccc;
+
+        &.edit-mode {
+            padding: 5px;
+        }
 
         .selected {
             position: absolute;
@@ -101,12 +139,15 @@
             -webkit-box-sizing: border-box;
             -moz-box-sizing: border-box;
             box-sizing: border-box;
-            border: solid 2px #eeca00;
+            border: solid 2px #0fb3ff85;
         }
 
         div {
+            display: flex;
             width: 100%;
             height: 100%;
+            justify-content: center;
+            align-items: center;
         }
 
 
@@ -124,11 +165,7 @@
             -moz-box-sizing: border-box;
             box-sizing: border-box;
             border: solid 1px #00b1ee;
-            -webkit-transform: scale(1.1);
-            -moz-transform: scale(1.1);
-            -ms-transform: scale(1.1);
-            -o-transform: scale(1.1);
-            transform: scale(1.1);
+            box-shadow: 3px 3px 3px rgba(0, 0, 0, 0.596);
             z-index: 100;
 
             input {
