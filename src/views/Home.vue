@@ -21,6 +21,7 @@
 
         methods: {
             changeValue(value) {
+                alert('changed value: ' + value.value + '\n\n' + JSON.stringify(value));
                 console.log('changed value', value);
             }
         }
